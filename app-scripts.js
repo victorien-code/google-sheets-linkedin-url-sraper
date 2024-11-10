@@ -1,64 +1,73 @@
+const apiKey = "TaCléeAPI";
+const searchEngineId = "yourSearchEngineId";
+
 /**
- * Find the url of a Linkedin profile
+ * Find the URL of a LinkedIn profile
  *
- * @param {string} query The person or company whose profile you want to find on Linkedin
- * @param {bool} company [OPTIONAL] Type TRUE if you're looking for a company profile. Default is FALSE
+ * @param {string} query The person or company whose profile you want to find on LinkedIn
+ * @param {boolean} company [OPTIONAL] Type TRUE if you're looking for a company profile. Default is FALSE
  * @param {number} index [OPTIONAL] Get a different result index. Default is 1. Write 0 to return all the results
- * @return if found, the hyperlink of the profile 
+ * @return if found, the hyperlink of the profile
  * @customfunction
  */
-function LINKEDINPROFILE(query, company, index = 1) {
-
-  const apiKey = "TaCléeAPI";
-  const searchEngineId = "yourSearchEngineId";
-
-  const urlQuery =
-    `https://www.googleapis.com/customsearch/v1?key={{apiKey}}&cx={{searchEngineId}}&q={{query}}&num=10`;
-
-  const url = urlQuery
-    .replace("{{apiKey}}", encodeURIComponent(apiKey))
-    .replace("{{searchEngineId}}", encodeURIComponent(searchEngineId))
-    .replace("{{query}}", encodeURIComponent(query));
-
-  const response = UrlFetchApp.fetch(url);
+function LINKEDINPROFILE(query, company = false, index = 1) {
+  const url = buildUrl(query);
 
   try {
+    const response = UrlFetchApp.fetch(url);
     const res = JSON.parse(response.getContentText());
 
-    let results = res.items.map(e => {
-      return e.formattedUrl;
-    });
-
-    let output;
-
-    if (company) {
-      output = results.filter(e => {
-        return e.includes("/company/");
-      });
-    } else {
-      output = results.filter(function(e, i) {
-        return e.includes("/in/");
-      });
+    if (!res.items || res.items.length === 0) {
+      throw new Error("No results found.");
     }
 
-    output = getResults(output,index);
+    const results = res.items.map(e => e.formattedUrl);
+    const filteredResults = filterResults(results, company);
+    return getResults(filteredResults, index);
 
-    return output;
-  }
-  catch (err) {
-    throw new Error (err)
+  } catch (err) {
+    throw new Error(`Error fetching LinkedIn profile: ${err.message}`);
   }
 }
 
-const getResults = (data,index) => {
-  let res;
+/**
+ * Build the URL for Google Custom Search API.
+ * @param {string} query - Search query
+ * @return {string} Complete URL with query parameters
+ */
+function buildUrl(query) {
+  const params = new URLSearchParams({
+    key: apiKey,
+    cx: searchEngineId,
+    q: query,
+    num: 10
+  });
+  return `https://www.googleapis.com/customsearch/v1?${params}`;
+}
 
-  if (index == 0) {
-    res = data.map((e,i) => `${i+1} ${e}`);
-    res.flat();
+/**
+ * Filter results based on profile type.
+ * @param {Array} results - Array of URLs from search results
+ * @param {boolean} company - true for company profile, false for individual profile
+ * @return {Array} Filtered array of URLs
+ */
+function filterResults(results, company) {
+  const profilePath = company ? "/company/" : "/in/";
+  return results.filter(url => url.includes(profilePath));
+}
+
+/**
+ * Get a specific result or all results if index is 0.
+ * @param {Array} data - Array of filtered URLs
+ * @param {number} index - Result index
+ * @return {string|Array} The selected result or all results
+ */
+function getResults(data, index) {
+  if (index === 0) {
+    return data.map((e, i) => `${i + 1}. ${e}`);
+  } else if (index > 0 && index <= data.length) {
+    return data[index - 1] || "Result not found at the specified index.";
   } else {
-    res = data[index-1];
+    throw new Error("Invalid index provided.");
   }
-  console.log(res);
-  return res;
 }
